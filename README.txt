@@ -11,4 +11,5 @@ Cloudflare Pages deployment:
 - Source repository: https://github.com/masiharashidi588-max/cartprac-account-app
 - Production branch: main
 - Static site: no build command; serve repository root.
+- Files are tracked for automatic Pages deployments from `main`.
 - API: https://cartprac-api.masiharashidi588.workers.dev
