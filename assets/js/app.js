@@ -38,12 +38,16 @@
     if (footer) footer.innerHTML = `<footer class="footer"><div class="wrap"><div class="footer-top"><div><strong>CartPrac Network</strong><div class="small soft">Built for Minecraft practice and community.</div></div><div class="footer-links"><a href="support.html">Support</a><a href="store.html">Store</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="https://discord.gg/P7HC6V8Pnk" target="_blank" rel="noopener">Discord ↗</a></div></div><p class="small soft">© ${new Date().getFullYear()} CartPrac. Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p></div></footer>`;
   }
   async function updateAuthNav() {
-    const nav = document.getElementById("navAuth"); if (!nav) return;
-    if (!sb) { nav.innerHTML = `<a class="btn btn-quiet btn-small" href="login.html">Log in</a><a class="btn btn-primary btn-small" href="signup.html">Sign up</a>`; return; }
-    const { data } = await sb.auth.getSession();
-    nav.innerHTML = data.session
-      ? `<a class="btn btn-primary btn-small" href="account.html">My account</a>`
-      : `<a class="btn btn-quiet btn-small" href="login.html">Log in</a><a class="btn btn-primary btn-small" href="signup.html">Sign up</a>`;
+    const nav = document.getElementById("navAuth");
+    const mobile = document.getElementById("mobileNav");
+    const links = [ ["index.html","Home"],["news.html","News"],["forums.html","Forums"],["leaderboards.html","Leaderboards"],["store.html","Store"],["rules.html","Rules"] ];
+    let authMarkup = `<a class="btn btn-quiet btn-small" href="login.html">Log in</a><a class="btn btn-primary btn-small" href="signup.html">Sign up</a>`;
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      if (data.session) authMarkup = `<a class="btn btn-primary btn-small" href="account.html">My account</a>`;
+    }
+    if (nav) nav.innerHTML = authMarkup;
+    if (mobile) mobile.innerHTML = links.map(([href,label]) => `<a class="btn btn-quiet btn-small" href="${href}">${label}</a>`).join("") + authMarkup;
   }
   async function loadPublicStats() {
     const root = document.getElementById("networkStats"); if (!root) return;
