@@ -168,7 +168,11 @@ async function syncAvatarVisibility(user, isPublic) {
     },
     body: JSON.stringify({ user_id: user.id, is_public: Boolean(isPublic), updated_at: new Date().toISOString() }),
   });
-  if (!result.ok) console.error("Avatar visibility sync failed:", result.status, await result.text().catch(() => ""));
+  if (!result.ok) {
+    console.error("Avatar visibility sync failed:", result.status, await result.text().catch(() => ""));
+    return false;
+  }
+  return true;
 }
 
 async function allowRate(env, key, limit, windowSeconds, now) {
@@ -270,6 +274,15 @@ async function handleSaveProfile(request, env, user, now) {
   const leaderboardVisibility = body.leaderboardVisibility === true ? 1 : 0;
   const avatarPreset = AVATAR_PRESETS.has(body.avatarPreset) ? body.avatarPreset : null;
   const existing = await getProfile(env, user.id);
+  if (!(await allowRate(env, `profile-save:${user.id}`, 12, 60, now))) {
+    return fail(request, env, 429, "Too many profile changes. Try again in a minute.");
+  }
+  // Revoke direct public Storage reads before committing a privacy change.
+  const removesPublicAvatar = Boolean(existing?.avatar_key) && existing.profile_visibility === "public" &&
+    (visibility === "private" || Boolean(avatarPreset));
+  if (removesPublicAvatar && !(await syncAvatarVisibility(user, false))) {
+    return fail(request, env, 503, "Your privacy change could not be synchronized. Nothing was changed; please retry.");
+  }
   if (!existing) {
     try {
       await env.DB.prepare(
@@ -301,7 +314,9 @@ async function handleSaveProfile(request, env, user, now) {
     }
   }
   const saved = await getProfile(env, user.id);
-  await updateAvatarVisibility(user, saved);
+  if (!(await updateAvatarVisibility(user, saved))) {
+    return fail(request, env, 503, "Your profile was saved, but avatar visibility could not be synchronized. The uploaded avatar remains private until this is resolved.");
+  }
   if (existing?.avatar_key && avatarPreset) {
     fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${existing.avatar_key.split("/").map(encodeURIComponent).join("/")}`, {
       method: "DELETE",
@@ -330,6 +345,17 @@ async function handleAvatar(request, env, user, now) {
   if (declaredLength > 1024 * 1024) return fail(request, env, 413, "Avatar images must be 1 MB or smaller.");
   const data = await request.arrayBuffer();
   if (!data.byteLength || data.byteLength > 1024 * 1024) return fail(request, env, 413, "Avatar images must be between 1 byte and 1 MB.");
+  const bytes = new Uint8Array(data);
+  const isPng = bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
+    bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const isWebp = bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+  if (!(contentType === "image/png" && isPng) &&
+      !(contentType === "image/jpeg" && isJpeg) &&
+      !(contentType === "image/webp" && isWebp)) {
+    return fail(request, env, 415, "The file contents do not match the selected image format.");
+  }
   const dailyKey = `avatar:${user.id}:${new Date(now * 1000).toISOString().slice(0, 10)}`;
   if (!(await allowRate(env, dailyKey, 5, 24 * 60 * 60, now))) return fail(request, env, 429, "Avatar upload limit reached. You can upload up to 5 images per day.");
   const key = `${user.id}/${crypto.randomUUID()}.${extension}`;
@@ -372,13 +398,16 @@ async function handlePublicAvatar(request, env, username) {
     headers: { apikey: SUPABASE_PUBLISHABLE_KEY },
   });
   if (!upstream.ok) return fail(request, env, upstream.status === 404 ? 404 : 502, "Public avatar could not be loaded.");
-  return binaryResponse(request, env, upstream, "public, max-age=300");
+  return binaryResponse(request, env, upstream, "private, no-store");
 }
 
 async function handleMinecraftLink(request, env, user, now) {
   if (request.method === "DELETE") {
     await env.DB.prepare("DELETE FROM minecraft_links WHERE user_id = ?").bind(user.id).run();
     return response(request, env, { ok: true });
+  }
+  if (!(await allowRate(env, `minecraft-link:${user.id}`, 6, 300, now))) {
+    return fail(request, env, 429, "Too many Minecraft linking attempts. Try again in five minutes.");
   }
   const body = await readJson(request);
   const code = cleanString(body?.code, 8).toUpperCase();
