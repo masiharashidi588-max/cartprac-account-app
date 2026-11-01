@@ -70,7 +70,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if(file.size>1024*1024){status(statusEl,"Choose an image no larger than 1 MB.","error");e.target.value="";return;}
     const uploadButton=e.target;
     uploadButton.disabled=true;
-    try{await api("/api/account/avatar",{method:"POST",body:file,headers:{"Content-Type":file.type}});const savedAvatar=await api("/api/account/avatar");showAvatar(savedAvatar);status(statusEl,"Avatar uploaded.","success");}
+    try{await api("/api/account/avatar",{method:"POST",body:file,headers:{"Content-Type":file.type}});const savedAvatar=await api("/api/account/avatar");showAvatar(savedAvatar);
+      document.querySelectorAll("#profileDashboard [data-avatar-preset]").forEach(button=>button.classList.remove("selected"));
+      status(statusEl,"Avatar uploaded.","success");}
     catch(err){status(statusEl,err.message||"Avatar upload failed.","error");}
     finally{uploadButton.disabled=false;uploadButton.value="";}
   });
