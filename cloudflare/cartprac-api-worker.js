@@ -186,18 +186,6 @@ async function allowRate(env, key, limit, windowSeconds, now) {
   return (row?.count || 0) <= limit;
 }
 
-async function loadLeaderboard(env, limit = 10) {
-  const result = await env.DB.prepare(
-    `SELECT ps.player_uuid AS uuid, ps.player_name AS name, ps.wins, ps.losses, ps.kills, ps.deaths
-     FROM player_stats ps
-     JOIN minecraft_links ml ON ml.player_uuid = ps.player_uuid
-     JOIN account_profiles ap ON ap.user_id = ml.user_id
-     WHERE ap.leaderboard_visibility = 1
-     ORDER BY ps.wins DESC, ps.kills DESC, ps.losses ASC LIMIT ?`
-  ).bind(limit).all();
-  return result.results || [];
-}
-
 function validatePlayerStats(body) {
   const uuid = cleanString(body?.uuid, 36).toLowerCase();
   const name = cleanString(body?.name, 16);
@@ -213,8 +201,8 @@ function validatePlayerStats(body) {
 
 async function upsertPlayerStats(env, player, now) {
   await env.DB.prepare(
-    `INSERT INTO player_stats (player_uuid, player_name, wins, losses, kills, deaths, elo, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1000, ?)
+    `INSERT INTO player_stats (player_uuid, player_name, wins, losses, kills, deaths, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(player_uuid) DO UPDATE SET player_name=excluded.player_name, wins=excluded.wins,
        losses=excluded.losses, kills=excluded.kills, deaths=excluded.deaths, updated_at=excluded.updated_at`
   ).bind(player.uuid, player.name, player.wins, player.losses, player.kills, player.deaths, now).run();
@@ -680,19 +668,14 @@ export default {
 
       if (request.method === "GET" && path === "/api/stats") {
         const row = await env.DB.prepare(
-          "SELECT online_players, max_players, queue_count, active_matches, available_kits_json, updated_at FROM server_status WHERE id = 1"
+          "SELECT online_players, active_matches, updated_at FROM server_status WHERE id = 1"
         ).first();
         const updatedAt = row?.updated_at || 0;
         const online = updatedAt > 0 && (now - updatedAt) <= 45;
-        const leaderboard = await loadLeaderboard(env, 10);
         return response(request, env, {
           online,
           playersOnline: online ? row.online_players : 0,
-          maxPlayers: row?.max_players || 0,
-          queueSize: online ? row.queue_count : 0,
           activeMatches: online ? row.active_matches : 0,
-          availableKits: online ? parseJsonArray(row.available_kits_json) : [],
-          leaderboard,
           updatedAt,
         });
       }
@@ -798,8 +781,8 @@ export default {
           players.push(normalized);
         }
         const statements = players.map((player) => env.DB.prepare(
-          `INSERT INTO player_stats (player_uuid, player_name, wins, losses, kills, deaths, elo, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 1000, ?)
+          `INSERT INTO player_stats (player_uuid, player_name, wins, losses, kills, deaths, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(player_uuid) DO UPDATE SET player_name=excluded.player_name, wins=excluded.wins,
              losses=excluded.losses, kills=excluded.kills, deaths=excluded.deaths, updated_at=excluded.updated_at`
         ).bind(player.uuid, player.name, player.wins, player.losses, player.kills, player.deaths, now));

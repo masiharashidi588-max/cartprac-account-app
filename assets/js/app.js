@@ -54,7 +54,7 @@
     try {
       const data = await api("/api/stats", { auth:false });
       const set = (id,value) => { const el=document.getElementById(id); if(el) el.textContent=value; };
-      set("playersOnline",data.playersOnline ?? 0); set("activeMatches",data.activeMatches ?? 0); set("queueCount",data.queueSize ?? 0);
+      set("playersOnline",data.playersOnline ?? 0); set("activeMatches",data.activeMatches ?? 0);
       set("networkStatus",data.online ? "ONLINE" : "OFFLINE");
       const st=document.getElementById("networkStatus"); if(st) st.classList.toggle("ok",!!data.online);
       set("networkUpdated",data.online ? "Updated moments ago" : "Server heartbeat not received");
