@@ -1,6 +1,12 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const CP=window.CP, {sb,api,status,escapeHtml,avatarUrl}=CP;
   const statusEl=document.getElementById("accountStatus");
+  let avatarObjectUrl = null;
+  function showAvatar(blob) {
+    if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
+    avatarObjectUrl = URL.createObjectURL(blob);
+    document.getElementById("accountAvatar").src = avatarObjectUrl;
+  }
   const setup=document.getElementById("profileSetup"); const dashboard=document.getElementById("profileDashboard");
   if(!sb){status(statusEl,"Account authentication isn't configured yet. Finish the Supabase setup first.","error");return;}
   const {data:sessionData}=await sb.auth.getSession();
@@ -18,11 +24,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       if(publicLink) publicLink.innerHTML=p.profileVisibility==="public" ? `Public profile: <a class="accent" href="player.html?name=${encodeURIComponent(p.username)}">Open profile ↗</a>` : "Your profile is private. You can make it public in Profile settings.";
       document.getElementById("accountId").textContent=p.cartpracId;
       document.getElementById("profileVisibility").value=p.profileVisibility;
+      document.querySelectorAll("#profileDashboard [data-avatar-preset]").forEach(button => {
+        button.classList.toggle("selected", button.dataset.avatarPreset === p.avatarPreset && !p.hasUploadedAvatar);
+      });
       document.getElementById("leaderboardVisibility").checked=p.leaderboardVisibility;
       document.getElementById("usernameChangeNote").textContent=p.usernameChangedAt?`Username changes are limited to once every 30 days.`:"You can change your username once every 30 days.";
       const img=document.getElementById("accountAvatar");
       if(p.hasUploadedAvatar){
-        const blob=await api("/api/account/avatar");img.src=URL.createObjectURL(blob);
+        const blob=await api("/api/account/avatar");showAvatar(blob);
       }else img.src=avatarUrl(p.avatarPreset);
       const link=data.minecraft;
       document.getElementById("minecraftLinked").textContent=link?`Linked: ${link.player_name}`:"No Minecraft account linked";
@@ -56,9 +65,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }catch(err){status(statusEl,err.message||"Could not save profile.","error");}finally{button.disabled=false;}
   });
   document.getElementById("avatarUpload")?.addEventListener("change",async e=>{
-    const file=e.target.files?.[0];if(!file)return;if(file.size>1024*1024){status(statusEl,"Choose an image no larger than 1 MB.","error");return;}
-    try{await api("/api/account/avatar",{method:"POST",body:file,headers:{"Content-Type":file.type}});const savedAvatar=await api("/api/account/avatar");document.getElementById("accountAvatar").src=URL.createObjectURL(savedAvatar);status(statusEl,"Avatar uploaded.","success");}
+    const file=e.target.files?.[0];if(!file)return;
+    if(!["image/png","image/jpeg","image/webp"].includes(file.type)){status(statusEl,"Use a PNG, JPEG or WebP image.","error");e.target.value="";return;}
+    if(file.size>1024*1024){status(statusEl,"Choose an image no larger than 1 MB.","error");e.target.value="";return;}
+    const uploadButton=e.target;
+    uploadButton.disabled=true;
+    try{await api("/api/account/avatar",{method:"POST",body:file,headers:{"Content-Type":file.type}});const savedAvatar=await api("/api/account/avatar");showAvatar(savedAvatar);status(statusEl,"Avatar uploaded.","success");}
     catch(err){status(statusEl,err.message||"Avatar upload failed.","error");}
+    finally{uploadButton.disabled=false;uploadButton.value="";}
   });
   document.getElementById("minecraftLinkForm")?.addEventListener("submit",async e=>{
     e.preventDefault();try{const code=document.getElementById("minecraftCode").value.trim().toUpperCase();await api("/api/account/minecraft/link",{method:"POST",body:JSON.stringify({code})});status(statusEl,"Minecraft account linked successfully.","success");await load();}
