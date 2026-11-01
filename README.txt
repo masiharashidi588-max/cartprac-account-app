@@ -15,4 +15,6 @@ Cloudflare Pages deployment:
 - Static site: no build command; serve repository root.
 - Files are tracked for automatic Pages deployments from `main`.
 - API: https://cartprac-api.masiharashidi588.workers.dev
+- Worker proxy source: `cloudflare/cartprac-account-proxy.js`
+- API Worker source: `cloudflare/cartprac-api-worker.js`
 - Worker proxy is GET/HEAD-only and fetches the static Pages origin
