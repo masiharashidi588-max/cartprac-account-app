@@ -242,7 +242,7 @@ function slugify(value) {
 }
 
 async function updateAvatarVisibility(user, profile) {
-  await syncAvatarVisibility(user, profile.profile_visibility === "public" && Boolean(profile.avatar_key));
+  return await syncAvatarVisibility(user, profile.profile_visibility === "public" && Boolean(profile.avatar_key));
 }
 
 async function handleAccountMe(request, env, user, now) {
@@ -377,7 +377,9 @@ async function handleAvatar(request, env, user, now) {
   await env.DB.prepare("UPDATE account_profiles SET avatar_key = ?, updated_at = ? WHERE user_id = ?")
     .bind(key, now, user.id).run();
   const saved = await getProfile(env, user.id);
-  await updateAvatarVisibility(user, saved);
+  if (!(await updateAvatarVisibility(user, saved))) {
+    return fail(request, env, 503, "Avatar uploaded, but its visibility could not be synchronized. Please retry from your account page.");
+  }
   if (oldKey) {
     fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${oldKey.split("/").map(encodeURIComponent).join("/")}`, {
       method: "DELETE",
