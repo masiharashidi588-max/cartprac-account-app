@@ -442,7 +442,8 @@ async function handlePublicProfile(request, env, username) {
   if (!profile) return fail(request, env, 404, "This profile does not exist or is private.");
   const minecraft = await env.DB.prepare("SELECT player_uuid FROM minecraft_links WHERE user_id = ?").bind(profile.user_id).first();
   let stats = null;
-  if (minecraft) stats = await env.DB.prepare(
+  // Public profiles do not reveal Minecraft statistics unless the user separately opts into public stats.
+  if (minecraft && profile.leaderboard_visibility) stats = await env.DB.prepare(
     "SELECT wins, losses, kills, deaths FROM player_stats WHERE player_uuid = ?"
   ).bind(minecraft.player_uuid).first();
   return response(request, env, {
