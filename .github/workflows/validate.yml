@@ -1,0 +1,35 @@
+name: Validate CartPrac Account App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "assets/js/**"
+      - "cloudflare/**"
+      - ".github/workflows/validate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "assets/js/**"
+      - "cloudflare/**"
+      - ".github/workflows/validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript syntax
+        run: |
+          set -eu
+          for file in assets/js/*.js cloudflare/*.js; do
+            node --check "$file"
+          done
