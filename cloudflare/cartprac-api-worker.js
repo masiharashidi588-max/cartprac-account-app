@@ -369,7 +369,7 @@ async function handlePublicAvatar(request, env, username) {
   if (!profile?.avatar_key) return fail(request, env, 404, "Public uploaded avatar not found.");
   const key = profile.avatar_key.split("/").map(encodeURIComponent).join("/");
   const upstream = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/avatars/${key}`, {
-    headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}` },
+    headers: { apikey: SUPABASE_PUBLISHABLE_KEY },
   });
   if (!upstream.ok) return fail(request, env, upstream.status === 404 ? 404 : 502, "Public avatar could not be loaded.");
   return binaryResponse(request, env, upstream, "public, max-age=300");
